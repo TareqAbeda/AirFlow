@@ -63,6 +63,220 @@ For now, this is enough architecture. Let's move to the next part.
 
 ---
 ## Installing Airflow
+These are the steps to donwload postgresql database.
+
+## Postgresql
+
+First install **Postgresql** in order to use it instead of **SQLite** as database for Airflow.
+
+### Step 1 : Install Postgresql
+
+#### Option 1: Install it form local **.rpm** files (Currently used)
+
+1. Install the required files for Airflow (postgresql, server, contrib, libs) from this link https://download.postgresql.org/pub/repos/yum/
+
+2. Move the files to the linux server.
+
+3. Navigate to the Folder where the rpm files are located and install the rpm files.
+For example:
+```bash
+cd path/to/folder/
+sudo dnf install *.rpm
+```
+#### Option 2: Install it form internet (Not tested)
+1. Add the PostgreSQL Yum Repository. For example :
+```bash
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/15/redhat/rhel-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+```
+2. Disable the Default PostgreSQL Module if necessary :
+```bash 
+sudo dnf -qy module disable postgresql
+```
+3. Install the required dependencies for Airflow :
+```bash
+sudo dnf install -y postgresql15-server postgresql15-contrib postgresql15-libs
+```
+### Step 2 : Setup Postgresql
+After installing postgresql now you need to Setup postgresql.
+
+1. Initialize PostgreSQL Database. For example:
+```bash 
+sudo /usr/pgsql-15/bin/postgresql-15-setup initdb
+```
+2. Start and enable PostgreSQL Service:
+```bash
+sudo systemctl enable postgresql-15
+sudo systemctl start postgresql-15
+```
+3. Check the status for posgres server: 
+```bash
+sudo systemctl status postgresql-15
+```
+
+### Step 3 : Setup a user and a database for Airflow
+Now you need to create a database for Airflow and a user with the correct privileges to use the database.
+
+#### Option 1: Use the default user for postgre (Currently used)
+1. First login in to the default user in postgres
+```bash
+sudo -u postgres psql
+```
+This will open the command line tool for postgres.
+2. Change the password for the default user
+```bash
+ALTER USER postgres WITH PASSWORD 'YOUR PASSWORD'; 
+```
+3. Now you can create a database for airflow and the default user will already have privileges to use it.
+```bash
+CREATE DATABASE <Database name>;
+```
+You will need to put this database and this user in the `sql_alchemy_conn` variable in airflow config file.
+
+4. Now you can quit the cli for postgre.
+```bash
+\q
+```
+#### Option 2: Create new user and give it privillages on the database for airflow (Not tested)
+1. First login in to the default user in postgres
+```bash
+sudo -u postgres psql
+```
+This will open the command line tool for postgres.
+
+2. Create the database
+```bash
+CREATE DATABASE <Database name>;
+```
+3. Create new user
+```bash
+CREATE USER <Username> WITH PASSWORD 'YOUR PASSWORD';
+```
+4. Grant the user the privileges to use the database
+```bash
+GRANT ALL PRIVILEGES ON DATABASE <Database name> TO <Username>;
+```
+5. Now you can quit the cli for postgre.
+```bash
+\q
+```
+## Airflow
+
+Here are the steps to install Airflow.
+
+## Step 1 : Install Airflow
+
+### Option 1: Install it form local **.whl** files (Currently used)
+1. On a device with internet connection download the wheel (.whl) files required by airflow.
+```bash
+pip download <package name> --dest /path/to/directory
+```
+**Note** : Not specifying the destination (--dest) will download the packages in the current active directory.
+
+To install Airflow with postgresql required packages run this command:
+```bash
+pip download apache-airflow[postgres] --dest /path/to/directory
+```
+
+You will also need to download the other required packages for Airflow.
+Such as :
+- apache-airflow-providers-microsoft-winrm
+- apache-airflow-providers-elasticsearch
+
+2. Move the .whl files for Airflow to linux server.
+
+
+3. Create new environment and activate it.
+```bash
+python3.10 -m venv <env name>
+source <env name>/bin/activate
+```
+
+4. install the files required for airflow on linux. Run this command:
+```bash
+pip install --no-index --find-links=<path to wheel files for airflow> apache-ariflow[postgres]
+```
+Repeat this command for all the required packages.
+
+
+### Option 2: Install it form internet (Not tested)
+1. To install airflow from internet directly run this command:
+```bash
+pip install apache-airflow[postgres]
+```
+Also install all the required packages.
+## Step 2 : Initialize Airflow
+Make sure that you have installed postgresql and that you have started the postgresql server and created a database so it can be used by airflow.
+
+1. Initialize the database for the first time so it can generate the config file for airflow.
+```bash
+airflow db init
+```
+2. Change the sql connection in config file. Open the cfg file and locate `sql_alchemy_conn ` and change the value like this:
+```bash
+sql_alchemy_conn = postgresql+psycopg2://<username>:<password>@localhost/<database name>
+```
+3. You will also need to change the executor so it can run multiple dags at the same time. Open the cfg file and locate `executor` and change the value like this:
+```bash
+executor = LocalExecutor
+```
+4. Now Initialize the data base again.
+
+```bash
+airflow db init
+```
+
+## Step 3 : Start Airflow
+
+To run Airflow you will need to use Terminal multiplixer such as screen and tmux etc.
+
+The Terminal multiplixers will help with:
+- Keeping the airflow running in background.
+- Managing multiple session at the same time.
+
+### Dealing with tmux
+Here are simple commands to help you dealing with tmux sessions:
+
+#### Start new session:
+```bash
+tmux new-session -s <session name>
+```
+
+#### Get list of existing sessions:
+```bash
+tmux ls
+```
+
+#### Attach existing session:
+```bash
+tmux attach-session -t <session name or session ID>
+``` 
+
+#### Kill session:
+```bash
+tmux kill-session -t <session name or session ID>
+```
+
+#### Split session into different windows: 
+- To split **horizontally** click: `Ctrl + b` then click `"` 
+- To split **vertically** click: `Ctrl + b` then click `%`  
+- To navigate through panes click: `Ctrl + b` then `arrows keys`
+
+#### Exit session:
+Click `Ctrl + b` then `d`.
+
+### Run Airflow:
+1. Run the scheduler:
+```bash
+airflow scheduler
+```
+2. Run the webserver on port 8080:
+```bash
+airflow webserver
+```
+You can also specify another port to use:
+```bash
+ariflow webserver -port 1111
+```
 
 ---
 
@@ -184,7 +398,11 @@ Helps to trigger certain action. Few of them are
 - `DummyOperator` - To show a dummy task
 - `DockerOperator` - To write and execute docker images.
 - `EmailOperator` - To send an email (using SMTP configuration)
-- `SSHOperator` - To execute commands on given remote host
+- `SSHOperator` - To execute commands on given remote host [DAG example](https://medium.com/apache-airflow/automating-remote-jobs-with-airflows-ssh-operator-a-step-by-step-guide-bd940bdd56a8)
+
+And the ones we used are:
+- `WinRMOperator` -  [DAG example](https://github.com/apache/airflow/blob/providers-microsoft-winrm/3.6.0/tests/system/providers/microsoft/winrm/example_winrm.py)
+- `HttpOperator` - [DAG example](https://github.com/apache/airflow/blob/providers-http/4.13.1/tests/system/providers/http/example_http.py)
 
 *and there many more operators do exits.* See the full [operators list](https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/operators/index.html) in the official documentation.
 
@@ -222,7 +440,7 @@ In Airflow, while defining the DAG, we provide a few options to let the schedule
 
 `start_date` -> when to start the DAG.
 
-`end_date` -> whne to stop the DAG
+`end_date` -> when to stop the DAG
 
 `schedule_interval` -> Time interval for the subsequent run. hourly, daily, minutes etc
 
